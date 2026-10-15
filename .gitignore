@@ -1,0 +1,25 @@
+# Gradle / build output
+.gradle/
+build/
+**/build/
+# Local machine config (contains absolute SDK path)
+local.properties
+# IDE
+.idea/
+*.iml
+.kotlin/
+# Secrets & keystores - never commit
+*.jks
+*.keystore
+*.peb
+keystore.properties
+.env
+# Generated
+captures/
+.externalNativeBuild/
+.cxx/
+# Dart/Flutter tooling
+.dart_tool/
+.flutter-plugins-dependencies
+# Local build logs
+*.log
