@@ -10,10 +10,11 @@ it depends on a real Android device, which this environment does not have.
 |---|---|---|
 | Static analysis | `flutter analyze` | **No issues found!** |
 | Unit tests | `flutter test` | **235 passed, 0 failed** |
-| Debug APK | `flutter build apk --debug --target-platform android-arm64` | **Built** (see the build log for the size) |
+| Debug APK | `flutter build apk --debug --target-platform android-arm64` | **Built, exit 0** — `build/app/outputs/flutter-apk/app-debug.apk`, 154,166,146 bytes |
 | Native engine packaged | `unzip -l app-debug.apk` | `lib/arm64-v8a/libtorrent4j.so` = 15.8 MB |
 | Engine Java classes | `strings classes22.dex` | 742 `org/libtorrent4j` refs |
 | Kotlin plugin/service | dex scan | `TorrentEnginePlugin`, `TorrentDownloadService` present |
+| New share channel compiled | `strings classes*.dex` | `SystemSharePlugin`, `dev.torrentlens/system` present in the APK |
 | PDF + SQLite native | `unzip -l` | `libpdfium.so`, `libsqlite3.so` present |
 | Permissions | `aapt2 dump badging` | No storage permission |
 | minSdk | `aapt2 dump badging` | 28 (required by libtorrent4j) |
