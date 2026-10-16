@@ -2,6 +2,7 @@ import '../models/library_entry.dart';
 import '../models/progress.dart';
 import '../models/subscription.dart';
 import '../models/torrent_task.dart';
+import '../tabs/browser_tab.dart';
 
 /// Repository contracts. The data layer implements them over SQLite; screens
 /// depend on these interfaces, never on the database directly.
@@ -47,6 +48,19 @@ abstract class SettingsRepository {
   Future<String?> get(String key);
   Future<void> set(String key, String value);
   Future<Map<String, String>> all();
+}
+
+/// Durable tab metadata. The active tab is persisted with the rows, so a
+/// restart restores the workspace the user left. Live controllers are never
+/// part of this contract.
+abstract class TabRepository {
+  Future<List<BrowserTab>> load();
+
+  /// Replaces the stored workspace with [tabs] in order. [activeId] is written
+  /// to the matching row.
+  Future<void> saveAll(List<BrowserTab> tabs, {required String? activeId});
+
+  Future<void> clear();
 }
 
 abstract class SyncQueueRepository {

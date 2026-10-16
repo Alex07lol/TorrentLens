@@ -6,8 +6,8 @@ import '../../design_system/components.dart';
 import '../../domain/github/github_ref.dart';
 import '../../domain/github/update_evaluator.dart';
 import '../../domain/models/subscription.dart';
-import '../../integrations/github/update_checker.dart';
 import '../../util/format.dart';
+import 'subscription_update_service.dart';
 
 /// GitHub publisher subscriptions: add a repository, check for new versions,
 /// and see the publisher trust status for each release.
@@ -192,32 +192,15 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
     await _load();
   }
 
+  /// The check itself lives in [SubscriptionUpdateService], which the background
+  /// worker also uses — so an automatic check and a manual one record exactly
+  /// the same state and produce the same message.
   Future<void> _checkOne(Subscription sub, {bool silent = false}) async {
     if (!silent) setState(() => _checking = true);
     try {
-      final outcome = await ref.read(servicesProvider).updateChecker.check(
-            owner: sub.owner,
-            repo: sub.repo,
-            installedVersion: sub.installedVersion,
-          );
-      final message = switch (outcome.error) {
-        UpdateCheckError.rateLimited =>
-          'GitHub rate limit reached. Add a token in Settings or try again later.',
-        UpdateCheckError.noManifest => 'No manifest asset found in the latest releases.',
-        UpdateCheckError.network => 'Network error while contacting GitHub.',
-        UpdateCheckError.invalidManifest => 'The published manifest was rejected: ${outcome.message}',
-        UpdateCheckError.noReleases => 'This repository has no releases.',
-        UpdateCheckError.fetchFailed => 'Could not download the manifest asset.',
-        null => outcome.message ?? '',
-      };
-      await ref.read(servicesProvider).subscriptions.upsert(sub.copyWith(
-            latestVersion: outcome.manifest?.contentVersion ?? sub.latestVersion,
-            trustStatus: outcome.trust.name,
-            lastCheckedAtMs: DateTime.now().millisecondsSinceEpoch,
-            manifestUrl: outcome.manifestUrl ?? sub.manifestUrl,
-            magnetUri: outcome.manifest?.magnetUri ?? sub.magnetUri,
-          ));
-      if (!silent && mounted) setState(() => _status[sub.id] = message);
+      final result = await SubscriptionUpdateService(ref.read(servicesProvider))
+          .checkAndRecord(sub);
+      if (!silent && mounted) setState(() => _status[sub.id] = result.message);
     } catch (e) {
       if (!silent && mounted) setState(() => _status[sub.id] = 'Check failed: $e');
     } finally {

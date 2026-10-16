@@ -11,6 +11,7 @@ import '../domain/security/trusted_keys.dart';
 import '../integrations/cloud_providers/cloud_registry.dart';
 import '../integrations/github/github_client.dart';
 import '../integrations/github/update_checker.dart';
+import '../integrations/media_resolver/http_fetcher.dart';
 import '../integrations/media_resolver/media_link_resolver.dart';
 import '../integrations/net/http_fetcher_io.dart';
 import '../integrations/torrent/torrent_engine.dart';
@@ -27,9 +28,13 @@ class AppServices {
   final ProgressRepository progress;
   final SettingsRepository settings;
   final SyncQueueRepository syncQueue;
+  final TabRepository tabs;
 
   final TorrentEngine engine;
-  final HttpFetcherImpl fetcher;
+
+  /// Declared as the interface, not the implementation, so the container can be
+  /// built with a fake in tests and the screens never see `package:http`.
+  final HttpFetcher fetcher;
   final GitHubClient github;
   final UpdateChecker updateChecker;
   final CloudProviderRegistry cloudRegistry;
@@ -52,6 +57,7 @@ class AppServices {
     required this.progress,
     required this.settings,
     required this.syncQueue,
+    required this.tabs,
     required this.engine,
     required this.fetcher,
     required this.github,
@@ -106,6 +112,7 @@ class AppServices {
       progress: SqfliteProgressRepository(db.db),
       settings: settings,
       syncQueue: SqfliteSyncQueueRepository(db.db),
+      tabs: SqfliteTabRepository(db.db),
       engine: MethodChannelTorrentEngine(),
       fetcher: fetcher,
       github: github,

@@ -131,6 +131,28 @@ class AppMigrations {
       )
       ''',
     ]),
+    // v2 — browser-style tab workspace. Only durable metadata is stored: a tab
+    // row references its content (a URL, a local path, a task/content id), never
+    // a WebView, a player or a media buffer.
+    Migration(2, [
+      '''
+      CREATE TABLE browser_tabs (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        location TEXT NOT NULL DEFAULT '',
+        history_json TEXT NOT NULL DEFAULT '[]',
+        history_index INTEGER NOT NULL DEFAULT 0,
+        content_id TEXT,
+        last_visited_at INTEGER,
+        scroll_offset REAL NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 0,
+        error TEXT
+      )
+      ''',
+      'CREATE INDEX idx_tabs_order ON browser_tabs(sort_order)',
+    ]),
   ];
 
   static int get latestVersion => all.last.version;

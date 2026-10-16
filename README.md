@@ -1,9 +1,10 @@
 # TorrentLens
 
-An **Android-first, local-first** application that combines a genuine BitTorrent
-client, a content explorer, document readers (EPUB/PDF/CBZ/images/text),
-a media player, an HTML/website viewer with media-link discovery, GitHub-powered
-publisher subscriptions, and an **optional** publisher-owned cloud sync protocol.
+An **Android-first, local-first** application that combines a browser-style
+multi-tab workspace, a genuine BitTorrent client, a content explorer, document
+readers (EPUB/PDF/CBZ/images/text), a media player, an HTML/website viewer with
+media-link discovery, GitHub-powered publisher subscriptions, and an **optional**
+publisher-owned cloud sync protocol.
 
 TorrentLens is an independent project. It does not require, ship with, or depend
 on any publisher's backend, and it operates fully offline.
@@ -37,19 +38,20 @@ lib/
   app/            dependency container (AppServices) + Riverpod providers
   core/           Result type
   design_system/  Material 3 theme + shared state views
-  domain/         pure Dart: torrent, github, security, manifests, media, sync, cloud
+  domain/         pure Dart: torrent, tabs, github, security, manifests, media, sync, cloud
   data/           SQLite database + migrations + repositories + secure store
   integrations/   torrent (channel), github, manifests, cloud_providers,
                   media_resolver, reader, web_sandbox, net
-  features/       home, downloads, explorer, library, subscriptions,
-                  cloud_sync, settings, reader, player, media_resolver, web_sandbox
+  features/       browser (tab workspace), home, downloads, explorer, library,
+                  subscriptions, cloud_sync, settings, reader, player,
+                  media_resolver, web_sandbox
   navigation/     shell + GoRouter routes
 android/app/src/main/kotlin/dev/torrentlens/torrentlens/
   torrent/        LibtorrentEngine, TorrentEnginePlugin (MethodChannel), sanitizer,
                   StreamingSupport (piece deadlines + stream snapshots)
   service/        TorrentDownloadService (foreground), Notifications
-test/             181 unit tests (domain, integrations, data, readers,
-                  streaming session)
+test/             235 unit tests (domain, integrations, data, readers,
+                  streaming session, tab workspace, update worker)
 docs/             architecture, security, source-manifest, cloud protocol,
                   media support, permissions, testing, troubleshooting, status
 native-legacy/    the earlier native-only (Kotlin/Compose) prototype, kept for

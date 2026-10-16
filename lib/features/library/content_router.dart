@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../navigation/route_args.dart';
+import '../../domain/tabs/browser_tab.dart';
+import '../../navigation/shell.dart';
+import '../browser/tab_manager.dart';
 
 enum ContentKind { epub, pdf, comic, text, image, video, audio, html, unknown }
 
@@ -59,29 +61,52 @@ class ContentRouter {
         ContentKind.unknown => 'Unsupported file',
       };
 
-  /// Opens [path] in the appropriate viewer.
-  static void open(BuildContext context, {required String path, required String title, String? contentId}) {
-    switch (kindOf(path)) {
-      case ContentKind.epub:
-        context.push('/reader/epub', extra: ReaderArgs(path: path, title: title, contentId: contentId));
-      case ContentKind.pdf:
-        context.push('/reader/pdf', extra: ReaderArgs(path: path, title: title, contentId: contentId));
-      case ContentKind.comic:
-      case ContentKind.image:
-        context.push('/reader/comic', extra: ReaderArgs(path: path, title: title, contentId: contentId));
-      case ContentKind.text:
-        context.push('/reader/text', extra: ReaderArgs(path: path, title: title, contentId: contentId));
-      case ContentKind.video:
-      case ContentKind.audio:
-        context.push('/player',
-            extra: PlayerArgs(source: path, title: title, isLocalFile: true, contentId: contentId));
-      case ContentKind.html:
-        context.push('/web', extra: WebSandboxArgs(title: title, localHtmlPath: path));
-      case ContentKind.unknown:
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('TorrentLens has no viewer for this file type.\n'
-              'You can still open it in another app from the Explorer.'),
-        ));
+  /// The tab type a [ContentKind] opens as.
+  static BrowserTabType tabTypeFor(ContentKind kind) => switch (kind) {
+        ContentKind.epub => BrowserTabType.epub,
+        ContentKind.pdf => BrowserTabType.pdf,
+        ContentKind.comic || ContentKind.image => BrowserTabType.comic,
+        ContentKind.text => BrowserTabType.text,
+        ContentKind.video || ContentKind.audio => BrowserTabType.player,
+        ContentKind.html => BrowserTabType.web,
+        ContentKind.unknown => BrowserTabType.home,
+      };
+
+  /// How a file is addressed inside a tab. Readers and the player use plain
+  /// filesystem paths; an HTML bundle uses a `file://` URL because that is what
+  /// the WebView needs, and the tab host tells the two apart by scheme.
+  static String locationFor(ContentKind kind, String path) =>
+      kind == ContentKind.html ? Uri.file(path).toString() : path;
+
+  /// Opens [path] in the appropriate viewer, as a tab in the workspace.
+  ///
+  /// This used to push a route, which replaced whatever the user was looking at.
+  /// Now the viewer becomes its own tab: the page (or explorer) it was opened
+  /// from stays open behind it, and opening the same file twice focuses the
+  /// existing tab instead of stacking duplicates.
+  static void open(
+    BuildContext context, {
+    required String path,
+    required String title,
+    String? contentId,
+  }) {
+    final kind = kindOf(path);
+    if (kind == ContentKind.unknown) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('TorrentLens has no viewer for this file type.\n'
+            'You can still open it in another app from the Explorer.'),
+      ));
+      return;
     }
+    final container = ProviderScope.containerOf(context, listen: false);
+    container.read(tabManagerProvider.notifier).openContent(
+          type: tabTypeFor(kind),
+          location: locationFor(kind, path),
+          title: title,
+          contentId: contentId,
+        );
+    // Bring the workspace forward so the user sees what they opened. The tab
+    // they came from is untouched and can be switched back to.
+    container.read(shellIndexProvider.notifier).set(ShellTab.tabs);
   }
 }

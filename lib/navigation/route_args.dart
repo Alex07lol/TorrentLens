@@ -38,10 +38,18 @@ class WebSandboxArgs {
   final Uri? url;
   final String? localHtmlPath;
   final bool allowJavascript;
+
+  /// Content that arrived inside a torrent (or any file the user did not
+  /// explicitly visit) is a different trust context from a page the user typed
+  /// into the address bar: only untrusted content gets the warning banner and
+  /// the JavaScript-off default.
+  final bool untrustedContent;
+
   const WebSandboxArgs({
     required this.title,
     this.url,
     this.localHtmlPath,
     this.allowJavascript = false,
+    this.untrustedContent = true,
   });
 }

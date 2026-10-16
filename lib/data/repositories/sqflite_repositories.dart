@@ -4,6 +4,7 @@ import '../../domain/models/progress.dart';
 import '../../domain/models/subscription.dart';
 import '../../domain/models/torrent_task.dart';
 import '../../domain/repositories/repositories.dart';
+import '../../domain/tabs/browser_tab.dart';
 
 class SqfliteTorrentTaskRepository implements TorrentTaskRepository {
   final Database db;
@@ -59,6 +60,37 @@ class SqfliteTorrentTaskRepository implements TorrentTaskRepository {
     await db.update('torrent_files', {'selected': selected ? 1 : 0},
         where: 'task_id = ? AND file_index = ?', whereArgs: [taskId, fileIndex]);
   }
+}
+
+class SqfliteTabRepository implements TabRepository {
+  final Database db;
+  SqfliteTabRepository(this.db);
+
+  @override
+  Future<List<BrowserTab>> load() async {
+    final rows = await db.query('browser_tabs', orderBy: 'sort_order ASC');
+    return rows.map(BrowserTab.fromMap).toList();
+  }
+
+  @override
+  Future<void> saveAll(List<BrowserTab> tabs, {required String? activeId}) async {
+    await db.transaction((txn) async {
+      await txn.delete('browser_tabs');
+      final batch = txn.batch();
+      for (var i = 0; i < tabs.length; i++) {
+        final tab = tabs[i];
+        final map = tab.toMap(sortOrder: i);
+        // The active tab is persisted from the workspace, not from whatever the
+        // in-memory flag happened to be at save time.
+        map['is_active'] = tab.id == activeId ? 1 : 0;
+        batch.insert('browser_tabs', map);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  @override
+  Future<void> clear() async => db.delete('browser_tabs');
 }
 
 class SqfliteSubscriptionRepository implements SubscriptionRepository {

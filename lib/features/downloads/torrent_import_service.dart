@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import '../../app/services.dart';
@@ -7,6 +8,7 @@ import '../../domain/torrent/task_state.dart';
 import '../../domain/torrent/torrent_source.dart';
 import '../../integrations/torrent/torrent_engine.dart';
 import '../../util/format.dart';
+import 'torrent_fetch.dart';
 
 class ImportResult {
   final bool ok;
@@ -56,22 +58,45 @@ class TorrentImportService {
     }
   }
 
+  /// Downloads a `.torrent` over HTTP(S) and imports the **original bytes**.
+  ///
+  /// The previous implementation went through `response.body` (a UTF-8 decode)
+  /// and re-encoded it with `codeUnits`, which corrupts every torrent whose
+  /// bytes fall outside ASCII. [TorrentFileFetcher] never decodes the body, and
+  /// validates the destination directory before anything is added.
   Future<ImportResult> addTorrentUrl(String url, {String? savePath}) async {
     final validated = TorrentSource.classify(url);
     if (validated.kind != TorrentSourceKind.torrentUrl) {
       return const ImportResult(
           ok: false, error: 'Only http(s) URLs ending in .torrent are supported here.');
     }
-    try {
-      final response = await services.fetcher.get(Uri.parse(url), maxBytes: 8 * 1024 * 1024);
-      if (response.statusCode >= 400) {
-        return ImportResult(ok: false, error: 'Server returned HTTP ${response.statusCode}.');
-      }
-      final bytes = Uint8List.fromList(response.body.codeUnits);
-      return await addTorrentBytes(bytes, savePath: savePath, name: Uri.parse(url).pathSegments.last);
-    } catch (e) {
-      return ImportResult(ok: false, error: 'Could not download the .torrent file: $e');
+    final dir = savePath ?? await _defaultDir();
+    final dirProblem = await _checkDir(dir);
+    if (dirProblem != null) return ImportResult(ok: false, error: dirProblem);
+
+    final fetched = await TorrentFileFetcher(services.fetcher).fetch(url);
+    final bytes = fetched.bytes;
+    if (bytes == null) {
+      return ImportResult(ok: false, error: fetched.message ?? 'Could not download that .torrent file.');
     }
+    final name = fetched.finalUrl?.pathSegments.isNotEmpty == true
+        ? fetched.finalUrl!.pathSegments.last
+        : Uri.parse(url).pathSegments.last;
+    return addTorrentBytes(bytes, savePath: dir, name: name);
+  }
+
+  /// The engine writes into [dir]; make sure it exists and is writable before a
+  /// torrent is added, so a bad path fails here with a clear message instead of
+  /// leaving a task that can never download.
+  Future<String?> _checkDir(String dir) async {
+    if (dir.trim().isEmpty) return 'No download folder is configured.';
+    final target = Directory(dir);
+    try {
+      if (!await target.exists()) await target.create(recursive: true);
+    } catch (e) {
+      return 'Cannot create the download folder "$dir": $e';
+    }
+    return null;
   }
 
   Future<ImportResult> _addMagnet(MagnetUri magnet, String dir) async {

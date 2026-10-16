@@ -18,7 +18,21 @@ import '../media_resolver/discovered_resources_sheet.dart';
 /// JavaScript on is per-page and shows a warning.
 class WebSandboxScreen extends ConsumerStatefulWidget {
   final WebSandboxArgs args;
-  const WebSandboxScreen({super.key, required this.args});
+
+  /// Reports every navigation the WebView performs, with the page title once it
+  /// is known. A tab host uses this to keep its tab record (and the address bar)
+  /// in step with the real page.
+  final void Function(String url, String? title)? onPageChanged;
+
+  final ValueChanged<bool>? onLoadingChanged;
+
+  const WebSandboxScreen({
+    super.key,
+    required this.args,
+    this.onPageChanged,
+    this.onLoadingChanged,
+  });
+
   @override
   ConsumerState<WebSandboxScreen> createState() => _WebSandboxScreenState();
 }
@@ -29,6 +43,9 @@ class _WebSandboxScreenState extends ConsumerState<WebSandboxScreen> {
   bool _loading = true;
   String? _error;
   String _currentUrl = '';
+
+  /// The window/tab URL is plain http, which the address bar shows as unsafe.
+  bool get _insecure => _currentUrl.startsWith('http://');
 
   @override
   void initState() {
@@ -45,17 +62,49 @@ class _WebSandboxScreenState extends ConsumerState<WebSandboxScreen> {
           }
           return NavigationDecision.navigate;
         },
-        onPageStarted: (url) => setState(() {
-          _loading = true;
-          _currentUrl = url;
-        }),
-        onPageFinished: (url) => setState(() => _loading = false),
-        onWebResourceError: (error) => setState(() {
-          _loading = false;
-          _error = error.description;
-        }),
+        onPageStarted: (url) {
+          setState(() {
+            _loading = true;
+            _currentUrl = url;
+          });
+          widget.onLoadingChanged?.call(true);
+          widget.onPageChanged?.call(url, null);
+        },
+        onPageFinished: (url) async {
+          if (mounted) setState(() => _loading = false);
+          widget.onLoadingChanged?.call(false);
+          String? title;
+          try {
+            title = await _controller.getTitle();
+          } catch (_) {
+            title = null;
+          }
+          widget.onPageChanged?.call(url, title);
+        },
+        onWebResourceError: (error) {
+          if (mounted) {
+            setState(() {
+              _loading = false;
+              _error = error.description;
+            });
+          }
+          widget.onLoadingChanged?.call(false);
+        },
       ));
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant WebSandboxScreen old) {
+    super.didUpdateWidget(old);
+    // A tab host can move this page programmatically (tab history back/forward,
+    // reload). Only then do we navigate; a page the WebView itself reported is
+    // already current, and re-loading it would loop.
+    final target = widget.args.url?.toString();
+    final currentFile = widget.args.localHtmlPath;
+    final changed = target != null && target != _currentUrl;
+    final fileChanged = currentFile != null && currentFile != old.args.localHtmlPath;
+    if (changed || fileChanged) _load();
   }
 
   void _blocked(String url) {
@@ -107,20 +156,34 @@ class _WebSandboxScreenState extends ConsumerState<WebSandboxScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            color: Theme.of(context).colorScheme.errorContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: Text(
-              _javascript
-                  ? 'Untrusted content — JavaScript is ENABLED for this page. Only do this for pages you trust.'
-                  : 'Untrusted content — JavaScript is disabled. Scripts cannot run.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onErrorContainer,
+          if (widget.args.untrustedContent)
+            Container(
+              width: double.infinity,
+              color: Theme.of(context).colorScheme.errorContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Text(
+                _javascript
+                    ? 'Untrusted content — JavaScript is ENABLED for this page. Only do this for pages you trust.'
+                    : 'Untrusted content — JavaScript is disabled. Scripts cannot run.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
+              ),
+            )
+          else if (_insecure)
+            Container(
+              width: double.infinity,
+              color: Theme.of(context).colorScheme.errorContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Text(
+                'This page is not encrypted (http). Anything you send to it can be read on the network.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                ),
               ),
             ),
-          ),
           if (_loading) const LinearProgressIndicator(minHeight: 2),
           Expanded(
             child: _error != null && !_loading
@@ -139,8 +202,11 @@ class _WebSandboxScreenState extends ConsumerState<WebSandboxScreen> {
       builder: (ctx) => AlertDialog(
         title: Text(enable ? 'Enable JavaScript?' : 'Disable JavaScript?'),
         content: Text(enable
-            ? 'This page came from a torrent and is untrusted. Enabling JavaScript lets its '
-                'code run inside the viewer sandbox (still with no app bridges and no file APIs).'
+            ? (widget.args.untrustedContent
+                ? 'This page came from a torrent and is untrusted. Enabling JavaScript lets its '
+                    'code run inside the viewer sandbox (still with no app bridges and no file APIs).'
+                : 'JavaScript lets this page run scripts. There is still no bridge to the app and no '
+                    'file access.')
             : 'The page will reload without JavaScript.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),

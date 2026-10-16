@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../app/providers.dart';
 import '../../domain/media/drm.dart';
 import '../../domain/media/media_resource.dart';
+import '../../domain/tabs/browser_tab.dart';
 import '../../integrations/media_resolver/media_action_router.dart';
 import '../../integrations/media_resolver/media_link_resolver.dart';
-import '../../navigation/route_args.dart';
+import '../browser/tab_manager.dart';
+import '../downloads/torrent_import_service.dart';
 
 /// The resource panel: every media/torrent/subtitle link discovered on a page,
 /// with the action TorrentLens will take. Nothing is downloaded implicitly.
@@ -92,36 +93,76 @@ IconData _iconFor(MediaKind kind) => switch (kind) {
       _ => Icons.help_outline,
     };
 
+/// Opens [r] in the right place. Player and web resources become their own tabs,
+/// so the page they were found on stays exactly where it was.
 void _act(BuildContext context, MediaResource r) {
   final routed = MediaActionRouter.route(r);
+  final container = ProviderScope.containerOf(context, listen: false);
+  final tabs = container.read(tabManagerProvider.notifier);
+  final title = r.title ?? r.url;
+
   switch (routed.target) {
     case RouteTarget.player:
-      context.push('/player', extra: PlayerArgs(source: r.url, title: r.title ?? r.url, mimeType: r.mimeType));
+      Navigator.pop(context);
+      tabs.openContent(
+        type: BrowserTabType.player,
+        location: r.url,
+        title: title,
+      );
     case RouteTarget.addTorrent:
     case RouteTarget.torrentInspector:
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Magnet/torrent links are added from the Downloads tab.'),
-        action: SnackBarAction(label: 'Later', onPressed: () {}),
-      ));
+      _addTorrent(context, container, r);
     case RouteTarget.webSandbox:
-      context.push('/web', extra: WebSandboxArgs(title: r.title ?? r.url, url: Uri.tryParse(r.url)));
+      final url = Uri.tryParse(r.url);
+      Navigator.pop(context);
+      if (url == null) {
+        _say(context, 'That link is not a usable page address.');
+        return;
+      }
+      tabs.openWeb(url, title: title);
     case RouteTarget.drmFlow:
       Navigator.pop(context);
       _drmFlow(context, r);
     case RouteTarget.externalBrowser:
     case RouteTarget.attachSubtitle:
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('This resource needs a playback session that is not active right now.'),
-      ));
+      _say(context, 'This resource needs a playback session that is not active right now.');
     default:
       Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('${r.kind.name} resources are opened from the Library or Explorer.'),
-      ));
+      _say(context, '${r.kind.name} resources are opened from the Library or Explorer.');
   }
 }
+
+/// Magnets and `.torrent` URLs go through the same import service as everywhere
+/// else, then get a tab of their own.
+Future<void> _addTorrent(
+  BuildContext context,
+  ProviderContainer container,
+  MediaResource r,
+) async {
+  final service = TorrentImportService(container.read(servicesProvider));
+  final result = r.url.toLowerCase().startsWith('magnet:')
+      ? await service.addMagnet(r.url)
+      : await service.addTorrentUrl(r.url);
+  if (!context.mounted) return;
+  if (!result.ok) {
+    _say(context, result.error ?? 'That link could not be added.');
+    return;
+  }
+  final hash = result.infoHash;
+  if (hash != null) {
+    container.read(tabManagerProvider.notifier).openTorrent(
+          infoHash: hash,
+          title: r.title ?? 'Torrent ${hash.substring(0, 8)}',
+          taskId: result.taskId,
+        );
+  }
+  _say(context, 'Torrent added. Metadata is resolving in Downloads.');
+}
+
+void _say(BuildContext context, String message) =>
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 
 /// Asks the configured [AuthorizedPlaybackAdapter] what would actually happen.
 ///

@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 
+import '../features/browser/tab_switcher_screen.dart';
 import '../features/cloud_sync/cloud_sync_screen.dart';
 import '../features/player/player_screen.dart';
 import '../features/reader/comic_reader_screen.dart';
@@ -40,5 +41,6 @@ final GoRouter appRouter = GoRouter(
       builder: (_, state) => WebSandboxScreen(args: state.extra as WebSandboxArgs),
     ),
     GoRoute(path: '/cloud', builder: (_, _) => const CloudSyncScreen()),
+    GoRoute(path: '/tabs', builder: (_, _) => const TabSwitcherScreen()),
   ],
 );

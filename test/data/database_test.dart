@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
 import 'package:torrentlens/data/db/app_database.dart';
 import 'package:torrentlens/data/db/migrations.dart';
 import 'package:torrentlens/data/repositories/sqflite_repositories.dart';
@@ -9,6 +10,7 @@ import 'package:torrentlens/domain/models/library_entry.dart';
 import 'package:torrentlens/domain/models/progress.dart';
 import 'package:torrentlens/domain/models/subscription.dart';
 import 'package:torrentlens/domain/models/torrent_task.dart';
+import 'package:torrentlens/domain/tabs/browser_tab.dart';
 import 'package:torrentlens/domain/torrent/task_state.dart';
 
 const task = TorrentTask(
@@ -30,13 +32,19 @@ const task = TorrentTask(
 void main() {
   setUpAll(sqfliteFfiInit);
 
+
   Future<AppDatabase> openMemory() =>
       AppDatabase.open(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
 
   test('migrations: create covers the latest version, upgrade is additive', () {
-    expect(AppMigrations.latestVersion, 1);
-    expect(AppMigrations.statementsForUpgrade(0, 1), AppMigrations.statementsForCreate());
-    expect(AppMigrations.statementsForUpgrade(1, 1), isEmpty);
+    expect(AppMigrations.latestVersion, 2);
+    expect(AppMigrations.statementsForUpgrade(0, 2), AppMigrations.statementsForCreate());
+    expect(AppMigrations.statementsForUpgrade(2, 2), isEmpty);
+    // Upgrading from v1 adds the tab table without touching v1 statements.
+    final v1to2 = AppMigrations.statementsForUpgrade(1, 2);
+    expect(v1to2, isNotEmpty);
+    expect(v1to2.join(' '), contains('browser_tabs'));
+    expect(v1to2.join(' '), isNot(contains('CREATE TABLE torrent_tasks')));
   });
 
   test('fresh database creates every expected table', () async {
@@ -54,6 +62,7 @@ void main() {
       'bookmarks',
       'sync_queue',
       'app_settings',
+      'browser_tabs',
     ]) {
       expect(names, contains(t), reason: 'missing table $t');
     }
@@ -189,6 +198,77 @@ void main() {
       // Reopening at the same version must not re-run migrations (no error).
       expect((await b.db.query('app_settings')).length, 1);
       await b.close();
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  test('tab repository restores the workspace in order with its active tab', () async {
+    final app = await openMemory();
+    final tabs = SqfliteTabRepository(app.db);
+    expect(await tabs.load(), isEmpty);
+
+    BrowserTab tab(String id, String url, {bool active = false, int history = 1}) => BrowserTab(
+          id: id,
+          type: BrowserTabType.web,
+          title: id,
+          location: url,
+          active: active,
+          historyIndex: history - 1,
+          lastVisitedAtMs: 10,
+          history: [
+            for (var i = 0; i < history; i++)
+              TabHistoryEntry(location: '$url#$i', title: '$id-$i', type: BrowserTabType.web),
+          ],
+        );
+
+    await tabs.saveAll([tab('a', 'https://a.example/'), tab('b', 'https://b.example/', history: 3)],
+        activeId: 'b');
+    final loaded = await tabs.load();
+    expect(loaded.map((t) => t.id), ['a', 'b']);
+    expect(loaded[1].history.length, 3);
+    expect(loaded[1].active, isTrue);
+    expect(loaded[0].active, isFalse);
+
+    // Saving again replaces rather than accumulating rows.
+    await tabs.saveAll([tab('a', 'https://a.example/', active: true)], activeId: 'a');
+    final after = await tabs.load();
+    expect(after.length, 1);
+    expect(after.single.active, isTrue);
+
+    await tabs.clear();
+    expect(await tabs.load(), isEmpty);
+    await app.close();
+  });
+
+  test('an existing v1 database is upgraded in place and keeps its data', () async {
+    final dir = await Directory.systemTemp.createTemp('torrentlens-upgrade');
+    final path = '${dir.path}/app.db';
+    try {
+      // Build a genuine v1 database the way the shipped v1 migration would.
+      final legacy = await databaseFactoryFfi.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 1,
+          onCreate: (db, _) async {
+            for (final s in AppMigrations.statementsForUpgrade(0, 1)) {
+              await db.execute(s);
+            }
+          },
+        ),
+      );
+      await legacy.insert('app_settings', {'key': 'kept', 'value': 'yes'});
+      await legacy.close();
+
+      final upgraded = await AppDatabase.open(factory: databaseFactoryFfi, path: path);
+      expect(await SqfliteSettingsRepository(upgraded.db).get('kept'), 'yes');
+      final tables = (await upgraded.db
+              .rawQuery("SELECT name FROM sqlite_master WHERE type='table'"))
+          .map((r) => '${r['name']}')
+          .toSet();
+      expect(tables, contains('browser_tabs'));
+      expect(await upgraded.db.getVersion(), AppMigrations.latestVersion);
+      await upgraded.close();
     } finally {
       await dir.delete(recursive: true);
     }
