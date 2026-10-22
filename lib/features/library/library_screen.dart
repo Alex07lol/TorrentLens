@@ -194,18 +194,27 @@ class _LibraryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progress = entry.readingFraction;
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: ListTile(
         onTap: onOpen,
-        leading: Icon(_iconFor(entry.kind)),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: scheme.secondaryContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(_iconFor(entry.kind), color: scheme.onSecondaryContainer),
+        ),
         title: Text(entry.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${entry.kind} · ${Fmt.bytes(entry.sizeBytes)}'),
+            Text('${_kindLabel(entry.kind)} · ${Fmt.bytes(entry.sizeBytes)}'),
             if (progress > 0 && progress < 1) ...[
-              const SizedBox(height: 4),
-              LinearProgressIndicator(value: progress),
+              const SizedBox(height: 6),
+              StateProgress(value: progress, color: scheme.primary),
             ],
           ],
         ),
@@ -215,7 +224,10 @@ class _LibraryTile extends StatelessWidget {
             IconButton(
               tooltip: 'Favorite',
               onPressed: onToggleFavorite,
-              icon: Icon(entry.isFavorite ? Icons.star : Icons.star_border),
+              icon: Icon(
+                entry.isFavorite ? Icons.star : Icons.star_border,
+                color: entry.isFavorite ? const Color(0xFFC9992A) : null,
+              ),
             ),
             IconButton(tooltip: 'Remove from library', onPressed: onDelete, icon: const Icon(Icons.delete_outline)),
           ],
@@ -223,6 +235,17 @@ class _LibraryTile extends StatelessWidget {
       ),
     );
   }
+
+  static String _kindLabel(String kind) => switch (kind) {
+        'epub' => 'EPUB',
+        'pdf' => 'PDF',
+        'comicArchive' => 'Comic',
+        'text' => 'Text',
+        'video' => 'Video',
+        'audio' => 'Audio',
+        'image' => 'Image',
+        _ => kind,
+      };
 
   static IconData _iconFor(String kind) => switch (kind) {
         'epub' => Icons.menu_book_outlined,

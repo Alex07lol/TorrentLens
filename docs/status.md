@@ -11,6 +11,8 @@ it depends on a real Android device, which this environment does not have.
 | Static analysis | `flutter analyze` | **No issues found!** |
 | Unit tests | `flutter test` | **235 passed, 0 failed** |
 | Debug APK | `flutter build apk --debug --target-platform android-arm64` | **Built, exit 0** — `build/app/outputs/flutter-apk/app-debug.apk`, 154,166,146 bytes |
+| Release APK | `flutter build apk --release --target-platform android-arm64` | **Built, exit 0** — `app-release.apk`, 47,450,591 bytes (v1.1.0+2) |
+| Font bundled | `unzip -l app-release.apk` | All 4 IBM Plex Sans weights under `assets/flutter_assets/assets/fonts/`, valid TTF |
 | Native engine packaged | `unzip -l app-debug.apk` | `lib/arm64-v8a/libtorrent4j.so` = 15.8 MB |
 | Engine Java classes | `strings classes22.dex` | 742 `org/libtorrent4j` refs |
 | Kotlin plugin/service | dex scan | `TorrentEnginePlugin`, `TorrentDownloadService` present |

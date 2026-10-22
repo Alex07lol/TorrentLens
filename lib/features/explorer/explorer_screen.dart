@@ -76,6 +76,7 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -91,9 +92,24 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(_current.path,
-                style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
+            margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.folder_outlined, size: 16, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_current.path,
+                      style: Theme.of(context).textTheme.labelMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: _loading
@@ -114,7 +130,16 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> {
                               final name = entity.path.split('/').last;
                               if (entity is Directory) {
                                 return ListTile(
-                                  leading: const Icon(Icons.folder),
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: scheme.secondaryContainer,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(Icons.folder,
+                                        color: scheme.onSecondaryContainer),
+                                  ),
                                   title: Text(name),
                                   trailing: const Icon(Icons.chevron_right),
                                   onTap: () => _enter(entity),
@@ -122,7 +147,15 @@ class _ExplorerScreenState extends ConsumerState<ExplorerScreen> {
                               }
                               final size = entity.statSync().size;
                               return ListTile(
-                                leading: Icon(_iconFor(name)),
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: scheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(_iconFor(name), color: scheme.onSurfaceVariant),
+                                ),
                                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 subtitle: Text('${ContentRouter.labelFor(ContentRouter.kindOf(name))} · ${Fmt.bytes(size)}'),
                                 trailing: const Icon(Icons.open_in_new),

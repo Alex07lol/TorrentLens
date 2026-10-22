@@ -79,6 +79,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, i) {
                     final sub = _subs[i];
+                    final scheme = Theme.of(context).colorScheme;
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.all(14),
@@ -87,6 +88,17 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                           children: [
                             Row(
                               children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: scheme.secondaryContainer,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(Icons.new_releases_outlined,
+                                      color: scheme.onSecondaryContainer),
+                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(sub.fullName,
                                       style: Theme.of(context).textTheme.titleSmall),
@@ -94,7 +106,7 @@ class _SubscriptionsScreenState extends ConsumerState<SubscriptionsScreen> {
                                 StatusPill(label: _trustLabel(sub.trustStatus), color: _trustColor(sub.trustStatus)),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 10),
                             Text('Installed: ${sub.installedVersion ?? 'not installed'} · '
                                 'Latest: ${sub.latestVersion ?? 'unknown'}'),
                             Text(

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../design_system/components.dart';
+import '../../design_system/theme.dart';
 import '../../domain/models/subscription.dart';
 import '../../domain/models/library_entry.dart';
 import '../../domain/models/torrent_task.dart';
@@ -104,6 +105,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_engineRunning && _statuses.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: StatReadout(
+                            value: Fmt.speed(
+                                _statuses.fold(0, (sum, st) => sum + st.downloadBps)),
+                            label: 'download',
+                            icon: Icons.arrow_downward,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        Expanded(
+                          child: StatReadout(
+                            value: Fmt.speed(
+                                _statuses.fold(0, (sum, st) => sum + st.uploadBps)),
+                            label: 'upload',
+                            icon: Icons.arrow_upward,
+                          ),
+                        ),
+                        Expanded(
+                          child: StatReadout(
+                            value: '${_statuses.fold(0, (sum, st) => sum + st.numPeers)}',
+                            label: 'peers',
+                            icon: Icons.people_outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 Text('${_tasks.length} task(s), $_activeCount active',
                     style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 4),
@@ -131,14 +164,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 : Column(
                     children: [
                       for (final st in _statuses.take(4))
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(st.infoHash.substring(0, 12),
-                              style: const TextStyle(fontFamily: 'monospace', fontSize: 13)),
-                          subtitle: LinearProgressIndicator(
-                              value: st.totalBytes == 0 ? null : st.progress),
-                          trailing: Text('${Fmt.percent(st.progress)}\n${Fmt.speed(st.downloadBps)}',
-                              textAlign: TextAlign.end, style: const TextStyle(fontSize: 12)),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(st.infoHash.substring(0, 12),
+                                        style: const TextStyle(
+                                            fontFamily: 'monospace', fontSize: 13)),
+                                  ),
+                                  Text(
+                                      '↓${Fmt.speed(st.downloadBps)}  ↑${Fmt.speed(st.uploadBps)}',
+                                      style: Theme.of(context).textTheme.labelMedium),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              StateProgress(
+                                value: st.totalBytes == 0 ? null : st.progress,
+                                color: TorrentLensTheme.stateColor(
+                                    st.state, Theme.of(context).brightness),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
                   ),

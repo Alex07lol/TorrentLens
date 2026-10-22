@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../../app/providers.dart';
 import '../../design_system/components.dart';
+import '../../design_system/theme.dart';
 import '../../domain/models/torrent_task.dart';
 import '../../domain/torrent/streaming.dart';
 import '../../integrations/torrent/torrent_engine.dart';
@@ -285,50 +286,91 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final live = status;
     final fraction = live?.progress ?? task.progress;
     final downloaded = live?.downloadedBytes ?? task.downloadedBytes;
     final total = (live?.totalBytes ?? task.totalBytes);
     final downloadBps = live?.downloadBps ?? task.downloadBps;
+    final uploadBps = live?.uploadBps ?? task.uploadBps;
     final peers = live?.numPeers ?? task.connectedPeers;
+    final seeds = live?.numSeeds ?? 0;
     final stateLabel = live?.state ?? task.state.name;
     final error = live?.errorMessage ?? task.errorMessage;
     final active = const {'downloading', 'resolvingMetadata', 'checking', 'seeding'}.contains(stateLabel);
+    final stateColor = TorrentLensTheme.stateColor(stateLabel, Theme.of(context).brightness);
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
-                  child: Text(task.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall),
+                  child: Text(task.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium),
                 ),
-                StatusPill(label: stateLabel, color: _stateColor(stateLabel)),
+                const SizedBox(width: 8),
+                StatusPill(label: stateLabel, color: stateColor),
+              ],
+            ),
+            const SizedBox(height: 14),
+            StateProgress(value: total == 0 ? null : fraction, color: stateColor),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: StatReadout(
+                    value: Fmt.percent(fraction),
+                    label: total == 0
+                        ? 'Waiting for metadata'
+                        : '${Fmt.bytes(downloaded)} of ${Fmt.bytes(total)}',
+                  ),
+                ),
+                Expanded(
+                  child: StatReadout(
+                    value: '↓${Fmt.speed(downloadBps)}',
+                    label: '↑${Fmt.speed(uploadBps)}',
+                    color: downloadBps > 0 ? stateColor : null,
+                    icon: Icons.downloading,
+                  ),
+                ),
+                if (active && total > 0)
+                  Expanded(
+                    child: StatReadout(
+                      value: Fmt.eta(total, downloaded, downloadBps),
+                      label: 'remaining',
+                      icon: Icons.hourglass_bottom,
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 10),
-            LinearProgressIndicator(value: total == 0 ? null : fraction),
-            const SizedBox(height: 8),
-            Text(
-              '${Fmt.bytes(downloaded)} / ${total == 0 ? 'unknown' : Fmt.bytes(total)} · '
-              '${Fmt.percent(fraction)} · ↓${Fmt.speed(downloadBps)} '
-              '${active && total > 0 ? '· ETA ${Fmt.eta(total, downloaded, downloadBps)}' : ''}',
-              style: Theme.of(context).textTheme.bodySmall,
+            Row(
+              children: [
+                Icon(Icons.people_outline, size: 14, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Text('$peers peers · $seeds seeds',
+                    style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(width: 12),
+                Icon(Icons.tag, size: 14, color: scheme.onSurfaceVariant),
+                const SizedBox(width: 4),
+                Text(task.infoHashHex?.substring(0, 12) ?? '—',
+                    style: Theme.of(context).textTheme.labelSmall),
+              ],
             ),
-            Text('$peers peer(s) · ${task.infoHashHex?.substring(0, 12) ?? '—'}',
-                style: Theme.of(context).textTheme.bodySmall),
             if (error != null && error.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(error, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(error,
+                    style: TextStyle(color: scheme.error, fontSize: 12)),
               ),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 4,
+            const SizedBox(height: 8),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 IconButton(
                     tooltip: 'Select files', onPressed: onSelectFiles, icon: const Icon(Icons.checklist)),
@@ -337,10 +379,11 @@ class _TaskCard extends StatelessWidget {
                   onPressed: onStream,
                   icon: const Icon(Icons.play_circle_outline),
                 ),
-                IconButton(
+                IconButton.filledTonal(
                   tooltip: active ? 'Pause' : 'Resume',
                   onPressed: active ? onPause : onResume,
-                  icon: Icon(active ? Icons.pause : Icons.play_arrow),
+                  icon: Icon(active ? Icons.pause : Icons.play_arrow, size: 20),
+                  visualDensity: VisualDensity.compact,
                 ),
                 IconButton(tooltip: 'Re-check data', onPressed: onRecheck, icon: const Icon(Icons.fact_check_outlined)),
                 IconButton(tooltip: 'Remove', onPressed: onRemove, icon: const Icon(Icons.delete_outline)),
@@ -351,16 +394,6 @@ class _TaskCard extends StatelessWidget {
       ),
     );
   }
-
-  static Color _stateColor(String state) => switch (state) {
-        'downloading' => Colors.blue,
-        'seeding' => Colors.green,
-        'completed' => Colors.green,
-        'paused' => Colors.grey,
-        'failed' => Colors.red,
-        'unavailable' => Colors.orange,
-        _ => Colors.blueGrey,
-      };
 }
 
 class _AddTorrentSheet extends ConsumerStatefulWidget {

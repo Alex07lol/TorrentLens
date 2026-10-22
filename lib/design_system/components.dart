@@ -33,12 +33,24 @@ class EmptyView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 56, color: Theme.of(context).colorScheme.outline),
-              const SizedBox(height: 16),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 40, color: Theme.of(context).colorScheme.outline),
+              ),
+              const SizedBox(height: 20),
               Text(title, style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
               if (message != null) ...[
                 const SizedBox(height: 8),
-                Text(message!, style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                Text(message!,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                    textAlign: TextAlign.center),
               ],
               if (action != null) ...[const SizedBox(height: 20), action!],
             ],
@@ -58,11 +70,23 @@ class ErrorView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.error_outline, size: 56, color: Theme.of(context).colorScheme.error),
-              const SizedBox(height: 16),
+              Container(
+                width: 88,
+                height: 88,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.error_outline, size: 40, color: Theme.of(context).colorScheme.onErrorContainer),
+              ),
+              const SizedBox(height: 20),
               Text('Something went wrong', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text(message, style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+              Text(message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                  textAlign: TextAlign.center),
               if (onRetry != null) ...[
                 const SizedBox(height: 20),
                 FilledButton.tonalIcon(
@@ -114,7 +138,8 @@ class PermissionDeniedView extends StatelessWidget {
       );
 }
 
-/// A titled card used throughout the app.
+/// A titled card used throughout the app. The title gets a small teal accent
+/// bar so sections are scannable at a glance.
 class SectionCard extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -123,28 +148,40 @@ class SectionCard extends StatelessWidget {
   const SectionCard({super.key, this.title, required this.child, this.trailing, this.padding = const EdgeInsets.all(16)});
 
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: padding,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (title != null)
-                Row(
-                  children: [
-                    Expanded(child: Text(title!, style: Theme.of(context).textTheme.titleMedium)),
-                    ?trailing,
-                  ],
-                ),
-              if (title != null) const SizedBox(height: 12),
-              child,
-            ],
-          ),
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (title != null)
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(title!, style: Theme.of(context).textTheme.titleMedium)),
+                  ?trailing,
+                ],
+              ),
+            if (title != null) const SizedBox(height: 12),
+            child,
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
-/// A compact trust/status pill.
+/// A compact trust/status pill, softer than a raw chip.
 class StatusPill extends StatelessWidget {
   final String label;
   final Color color;
@@ -154,17 +191,67 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.14),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.32)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) Icon(icon, size: 14, color: color),
+            if (icon != null) Icon(icon, size: 13, color: color),
             if (icon != null) const SizedBox(width: 4),
-            Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+            Text(label, style: TextStyle(fontSize: 11.5, color: color, fontWeight: FontWeight.w600, letterSpacing: 0.2)),
           ],
+        ),
+      );
+}
+
+/// A large numeric readout — speed, total size, peer count. Tabular figures
+/// are inherited from the theme, so digits never jitter.
+class StatReadout extends StatelessWidget {
+  final String value;
+  final String label;
+  final IconData? icon;
+  final Color? color;
+  const StatReadout({super.key, required this.value, required this.label, this.icon, this.color});
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final c = color ?? scheme.onSurface;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 15, color: c.withValues(alpha: 0.85)),
+              const SizedBox(width: 4),
+            ],
+            Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: c)),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(label, style: Theme.of(context).textTheme.labelSmall),
+      ],
+    );
+  }
+}
+
+/// A thin progress line with rounded caps, tinted to the state colour.
+class StateProgress extends StatelessWidget {
+  final double? value;
+  final Color color;
+  const StateProgress({super.key, required this.value, required this.color});
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(999),
+        child: LinearProgressIndicator(
+          value: value,
+          minHeight: 5,
+          color: color,
+          backgroundColor: color.withValues(alpha: 0.14),
         ),
       );
 }
